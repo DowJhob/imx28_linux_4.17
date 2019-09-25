@@ -32,10 +32,10 @@
 
 			ssp0: ssp@80010000 {
 				compatible = "fsl,imx28-mmc";
-				pinctrl-names = "default";
-				pinctrl-0 = <&mmc0_8bit_pins_a
+				pinctrl-names = "default";				
+				pinctrl-0 = <&mmc0_4bit_pins_a
 					&mmc0_cd_cfg &mmc0_sck_cfg>;
-				bus-width = <8>;
+				bus-width = <4>;
 				//wp-gpios = <&gpio2 12 0>;
 				vmmc-supply = <&reg_vddio_sd0>;
 				status = "okay";
@@ -47,12 +47,12 @@
 				//wp-gpios = <&gpio0 28 0>;
 			};
 
-			ssp2: ssp@80014000 {
+			/*ssp2: ssp@80014000 {
 				#address-cells = <1>;
 				#size-cells = <0>;
 				compatible = "fsl,imx28-spi";
 				pinctrl-names = "default";
-				pinctrl-0 = <&spi2_pins_a>;
+				//pinctrl-0 = <&spi2_pins_a>;
 				status = "okay";
 
 				flash: m25p80@0 {
@@ -62,7 +62,7 @@
 					spi-max-frequency = <40000000>;
 					reg = <0>;
 				};
-			};
+			};*/
 
 			pinctrl@80018000 {
 				pinctrl-names = "default";
@@ -71,8 +71,14 @@
 				hog_pins_a: hog@0 {
 					reg = <0>;
 					fsl,pinmux-ids = <
-						//MX28_PAD_SSP1_CMD__GPIO_2_13
-						//MX28_PAD_SSP1_DATA3__GPIO_2_15
+						MX28_PAD_SSP0_DATA4__GPIO_2_4
+						MX28_PAD_SSP0_DATA5__GPIO_2_5
+						MX28_PAD_SSP0_DATA6__GPIO_2_6
+						MX28_PAD_SSP0_DATA7__GPIO_2_7
+						MX28_PAD_SSP1_SCK__GPIO_2_12
+						MX28_PAD_SSP1_CMD__GPIO_2_13
+						MX28_PAD_SSP1_DATA0__GPIO_2_14
+						MX28_PAD_SSP1_DATA3__GPIO_2_15
 						MX28_PAD_ENET0_RX_CLK__GPIO_4_13
 						//MX28_PAD_SSP1_SCK__GPIO_2_12
 						//MX28_PAD_PWM3__GPIO_3_28
@@ -84,7 +90,17 @@
 					fsl,voltage = <MXS_VOLTAGE_HIGH>;
 					fsl,pull-up = <MXS_PULL_DISABLE>;
 				};
-
+				auart3_pins_tp28: auart3-tp28@0 {
+					reg = <0>;
+					fsl,pinmux-ids = <
+						MX28_PAD_AUART3_RX__AUART3_RX
+						MX28_PAD_SSP2_SS0__AUART3_TX
+					>;
+					fsl,drive-strength = <MXS_DRIVE_4mA>;
+					fsl,voltage = <MXS_VOLTAGE_HIGH>;
+					fsl,pull-up = <MXS_PULL_DISABLE>;
+				};
+				
 				led_pin_gpio3_29: led_gpio3_29@0 {
 					reg = <0>;
 					fsl,pinmux-ids = <
@@ -118,6 +134,38 @@
 					fsl,voltage = <MXS_VOLTAGE_HIGH>;
 					fsl,pull-up = <MXS_PULL_DISABLE>;
 				};
+				
+				usb0_pins_tp28: usb0-tp280@0 {
+					reg = <0>;
+					fsl,pinmux-ids = <
+						MX28_PAD_SSP2_SS2__USB0_OVERCURRENT
+					>;
+					fsl,drive-strength = <MXS_DRIVE_4mA>;
+					fsl,voltage = <MXS_VOLTAGE_HIGH>;
+					fsl,pull-up = <MXS_PULL_ENABLE>;
+				};
+				
+				usb1_pins_tp28: usb1-tp28@0 {
+					reg = <0>;
+					fsl,pinmux-ids = <
+						MX28_PAD_SSP2_SS1__USB1_OVERCURRENT
+					>;
+					fsl,drive-strength = <MXS_DRIVE_4mA>;
+					fsl,voltage = <MXS_VOLTAGE_HIGH>;
+					fsl,pull-up = <MXS_PULL_ENABLE>;
+				};
+				
+				/*can0_pins_b: can0@0 {
+					reg = <0>;
+					fsl,pinmux-ids = <
+						MX28_PAD_AUART3_RX__CAN0_TX
+						MX28_PAD_AUART3_TX__CAN0_RX
+					>;
+					fsl,drive-strength = <MXS_DRIVE_4mA>;
+					fsl,voltage = <MXS_VOLTAGE_HIGH>;
+					fsl,pull-up = <MXS_PULL_DISABLE>;
+				};*/
+				
 			};
 
 			lcdif@80030000 {
@@ -171,12 +219,12 @@
 				};
 			};
 
-			can0: can@80032000 {
+			/*can0: can@80032000 {
 				pinctrl-names = "default";
-				pinctrl-0 = <&can0_pins_a>;
+				pinctrl-0 = <&can0_pins_b>;
 				xceiver-supply = <&reg_can_3v3>;
 				status = "okay";
-			};
+			};*/
 
 			/*can1: can@80034000 {
 				pinctrl-names = "default";
@@ -249,13 +297,27 @@
 			auart0: serial@8006a000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&auart0_pins_a>;
+				//uart-has-rtscts;
+				status = "okay";
+			};
+			auart1: serial@8006c000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&auart1_pins_a>;
 				uart-has-rtscts;
+				rts-gpios = <&gpio2 13 GPIO_ACTIVE_LOW>;
+				status = "okay";
+			};
+			auart2: serial@8006e000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&auart2_pins_a>;
+				uart-has-rtscts;
+				rts-gpios = <&gpio2 5 GPIO_ACTIVE_LOW>;
 				status = "okay";
 			};
 
 			auart3: serial@80070000 {
 				pinctrl-names = "default";
-				pinctrl-0 = <&auart3_2pins_a>;
+				pinctrl-0 = <&auart3_pins_tp28>;
 				status = "okay";
 			};
 
@@ -272,19 +334,21 @@
 	ahb@80080000 {
 		usb0: usb@80080000 {
 			pinctrl-names = "default";
-			pinctrl-0 = <&usb0_id_pins_b>;
+			pinctrl-0 = <&usb0_id_pins_b &usb0_pins_tp28>;
 			vbus-supply = <&reg_usb0_vbus>;
 			dr_mode = "otg";//"peripheral";
-			phy_type = "utmi";
-			disable-over-current;
+			//phy_type = "utmi";
+			//disable-over-current;
 			status = "okay";
 		};
 
 		usb1: usb@80090000 {
 			vbus-supply = <&reg_usb1_vbus>;
 			//dr_mode = "host";
-			phy_type = "utmi";
-			disable-over-current;
+			//phy_type = "utmi";
+			pinctrl-names = "default";
+			pinctrl-0 = <&usb1_pins_tp28>;
+			//disable-over-current;
 			status = "okay";
 		};
 

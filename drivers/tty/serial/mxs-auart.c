@@ -424,6 +424,7 @@ struct mxs_auart_port {
 #define MXS_AUART_DMA_TX_SYNC	2  /* bit 2 */
 #define MXS_AUART_DMA_RX_READY	3  /* bit 3 */
 #define MXS_AUART_RTSCTS	4  /* bit 4 */
+#define MXS_AUART_RTSGPIO	5  /* bit 5 */
 	unsigned long flags;
 	unsigned int mctrl_prev;
 	enum mxs_auart_type devtype;
@@ -523,6 +524,10 @@ static void mxs_clr(unsigned int val, struct mxs_auart_port *uap,
 }
 
 static void mxs_auart_stop_tx(struct uart_port *u);
+static void mxs_auart_start_rx(struct uart_port *u);
+static void mxs_auart_stop_rx(struct uart_port *u);
+
+static unsigned int mxs_auart_tx_empty(struct uart_port *u);
 
 #define to_auart_port(u) container_of(u, struct mxs_auart_port, port)
 
@@ -639,6 +644,18 @@ static void mxs_auart_tx_chars(struct mxs_auart_port *s)
 		mxs_clr(AUART_INTR_TXIEN, s, REG_INTR);
 	else
 		mxs_set(AUART_INTR_TXIEN, s, REG_INTR);
+		
+	if (uart_circ_empty(&(s->port.state->xmit))){
+		if (s->port.rs485.flags & SER_RS485_ENABLED){
+			while (!mxs_auart_tx_empty(&s->port)){
+				mdelay(1);
+			}
+			mdelay(s->port.rs485.delay_rts_after_send);
+			if (!(s->port.rs485.flags & SER_RS485_RX_DURING_TX)){
+				mxs_auart_start_rx(&s->port);
+			}
+		}
+	}
 
 	if (uart_tx_stopped(&s->port))
 		mxs_auart_stop_tx(&s->port);
@@ -748,7 +765,9 @@ static void mxs_auart_set_mctrl(struct uart_port *u, unsigned mctrl)
 
 	mxs_write(ctrl, s, REG_CTRL2);
 
-	mctrl_gpio_set(s->gpios, mctrl);
+	if (s->port.rs485.flags & SER_RS485_ENABLED){
+		mctrl_gpio_set(s->gpios, mctrl);
+	}
 }
 
 #define MCTRL_ANY_DELTA        (TIOCM_RI | TIOCM_DSR | TIOCM_CD | TIOCM_CTS)
@@ -1274,10 +1293,17 @@ static void mxs_auart_shutdown(struct uart_port *u)
 static unsigned int mxs_auart_tx_empty(struct uart_port *u)
 {
 	struct mxs_auart_port *s = to_auart_port(u);
-
+	
 	if ((mxs_read(s, REG_STAT) &
-		 (AUART_STAT_TXFE | AUART_STAT_BUSY)) == AUART_STAT_TXFE)
-		return TIOCSER_TEMT;
+		 (AUART_STAT_TXFE | AUART_STAT_BUSY)) == AUART_STAT_TXFE){
+		 	if (s->port.rs485.flags & SER_RS485_ENABLED){
+				if (s->port.mctrl & TIOCM_RTS){
+					s->port.mctrl &= ~TIOCM_RTS;
+					mctrl_gpio_set(s->gpios, s->port.mctrl);
+					}
+			}
+			return TIOCSER_TEMT;
+		}
 
 	return 0;
 }
@@ -1285,6 +1311,17 @@ static unsigned int mxs_auart_tx_empty(struct uart_port *u)
 static void mxs_auart_start_tx(struct uart_port *u)
 {
 	struct mxs_auart_port *s = to_auart_port(u);
+	
+	if (!s->port.x_char && uart_circ_empty(&u->state->xmit))
+		return;
+	
+	if (s->port.rs485.flags & SER_RS485_ENABLED){
+		if (!(s->port.rs485.flags & SER_RS485_RX_DURING_TX)){
+				mxs_auart_stop_rx(u);
+		}		
+		s->port.mctrl |= TIOCM_RTS;
+		mctrl_gpio_set(s->gpios, s->port.mctrl);		
+	}	
 
 	/* enable transmitter */
 	mxs_set(AUART_CTRL2_TXE, s, REG_CTRL2);
@@ -1295,8 +1332,20 @@ static void mxs_auart_start_tx(struct uart_port *u)
 static void mxs_auart_stop_tx(struct uart_port *u)
 {
 	struct mxs_auart_port *s = to_auart_port(u);
+	
+	if (s->port.rs485.flags & SER_RS485_ENABLED){		
+		s->port.mctrl &= ~TIOCM_RTS;
+		mctrl_gpio_set(s->gpios, s->port.mctrl);
+	}
 
 	mxs_clr(AUART_CTRL2_TXE, s, REG_CTRL2);
+}
+
+static void mxs_auart_start_rx(struct uart_port *u)
+{
+	struct mxs_auart_port *s = to_auart_port(u);
+
+	mxs_set(AUART_CTRL2_RXE, s, REG_CTRL2);
 }
 
 static void mxs_auart_stop_rx(struct uart_port *u)
@@ -1472,7 +1521,7 @@ auart_console_setup(struct console *co, char *options)
 }
 
 static struct console auart_console = {
-	.name		= "ttyAPP",
+	.name		= "ttySP",
 	.write		= auart_console_write,
 	.device		= uart_console_device,
 	.setup		= auart_console_setup,
@@ -1484,8 +1533,8 @@ static struct console auart_console = {
 
 static struct uart_driver auart_driver = {
 	.owner		= THIS_MODULE,
-	.driver_name	= "ttyAPP",
-	.dev_name	= "ttyAPP",
+	.driver_name	= "ttySP",
+	.dev_name	= "ttySP",
 	.major		= 0,
 	.minor		= 0,
 	.nr		= MXS_AUART_PORTS,
@@ -1549,6 +1598,25 @@ disable_clk_ahb:
 	return err;
 }
 
+/* called with port.lock taken and irqs off or from .probe without locking */
+static int imx_uart_rs485_config(struct uart_port *port,
+				 struct serial_rs485 *rs485conf)
+{	
+	struct mxs_auart_port *s = to_auart_port(port);	
+
+	/* unimplemented */
+	//rs485conf->delay_rts_before_send = 0;		
+
+	// GPIO RTS is required to control the transmitter */
+	if ((rs485conf->flags & SER_RS485_ENABLED) && (!test_bit(MXS_AUART_RTSGPIO, &s->flags))){
+		rs485conf->flags &= ~SER_RS485_ENABLED;
+	}
+
+	port->rs485 = *rs485conf;
+
+	return 0;
+}
+
 /*
  * This function returns 1 if pdev isn't a device instatiated by dt, 0 if it
  * could successfully get all information from dt or a negative errno.
@@ -1573,6 +1641,9 @@ static int serial_mxs_probe_dt(struct mxs_auart_port *s,
 	if (of_get_property(np, "uart-has-rtscts", NULL) ||
 	    of_get_property(np, "fsl,uart-has-rtscts", NULL) /* deprecated */)
 		set_bit(MXS_AUART_RTSCTS, &s->flags);
+		
+	if (of_get_property(np, "rts-gpios", NULL))
+		set_bit(MXS_AUART_RTSGPIO, &s->flags);
 
 	return 0;
 }
@@ -1690,6 +1761,7 @@ static int mxs_auart_probe(struct platform_device *pdev)
 	s->port.fifosize = MXS_AUART_FIFO_SIZE;
 	s->port.uartclk = clk_get_rate(s->clk);
 	s->port.type = PORT_IMX;
+	s->port.rs485_config = imx_uart_rs485_config;
 
 	mxs_init_regs(s);
 
@@ -1708,6 +1780,9 @@ static int mxs_auart_probe(struct platform_device *pdev)
 		goto out_disable_clks;
 
 	platform_set_drvdata(pdev, s);
+	
+	uart_get_rs485_mode(&pdev->dev, &s->port.rs485);
+	imx_uart_rs485_config(&s->port, &s->port.rs485);
 
 	ret = mxs_auart_init_gpios(s, &pdev->dev);
 	if (ret) {
