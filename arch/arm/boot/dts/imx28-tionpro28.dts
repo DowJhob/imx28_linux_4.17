@@ -27,7 +27,38 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&gpmi_pins_a &gpmi_status_cfg
 					     &gpmi_pins_evk>;
+				//nand-on-flash-bbt;
+				//fsl,use-minimum-ecc;
 				status = "okay";
+				partition@0 {
+                                        label = "bootloader";
+                                        reg = <0x00000000 0x001000000>;
+                                };
+                                partition@300000 {
+                                        label = "environment";
+                                        reg = <0x00100000 0x00080000>;
+                                };
+                                partition@380000 {
+                                        label = "redundant-environment";
+                                        reg = <0x00180000 0x00080000>;
+                                };
+                                partition@400000 {
+                                        label = "kernel";
+                                        reg = <0x00200000 0x00400000>;
+                                };
+                                partition@800000 {
+                                        label = "fdt";
+                                        reg = <0x00800000 0x00080000>;
+                                };
+                                partition@880000 {
+                                        label = "ramdisk";
+                                        reg = <0x00880000 0x00800000>;
+                                };
+                                partition@1080000 {
+                                        label = "rootfs";
+                                        reg = <0x01400000 0x0ec00000>;
+                                };
+				
 			};
 
 			ssp0: ssp@80010000 {
